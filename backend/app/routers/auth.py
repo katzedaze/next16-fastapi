@@ -1,9 +1,8 @@
-from datetime import timedelta
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_db, get_current_user, get_current_active_user
+from app.core.deps import get_db, get_current_active_user
 from app.core.security import create_access_token, create_refresh_token
 from app.core.config import settings
 from app.crud.user import (
@@ -29,12 +28,13 @@ router = APIRouter(prefix="/api/auth", tags=["authentication"])
 @router.post("/register", response_model=UserWithTokenResponse, status_code=status.HTTP_201_CREATED)
 def register(
     request: UserRegisterRequest,
+    response: Response,
     db: Session = Depends(get_db)
 ):
     """
     ユーザー登録エンドポイント
 
-    新しいユーザーを作成し、アクセストークンとリフレッシュトークンを返します。
+    新しいユーザーを作成し、アクセストークンとリフレッシュトークンをHttpOnly Cookieにセットします。
 
     フロントエンド送信データ (camelCase):
     ```json
@@ -60,6 +60,8 @@ def register(
         "tokenType": "bearer"
     }
     ```
+
+    注: トークンはHttpOnly Cookieにもセットされます（SSR対応）
     """
     # メールアドレスの重複チェック
     existing_user = get_user_by_email(db, email=request.email)
@@ -89,6 +91,24 @@ def register(
     access_token = create_access_token(data={"sub": str(user.id)})
     refresh_token = create_refresh_token(data={"sub": str(user.id)})
 
+    # HttpOnly Cookieにトークンをセット（SSR対応）
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,  # JavaScriptからアクセス不可（XSS対策）
+        secure=settings.environment == "production",  # 本番環境ではHTTPSのみ
+        samesite="lax",  # CSRF対策
+        max_age=settings.access_token_expire_minutes * 60,  # 秒単位
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=settings.environment == "production",
+        samesite="lax",
+        max_age=settings.refresh_token_expire_days * 24 * 60 * 60,
+    )
+
     return UserWithTokenResponse(
         user=UserResponse.model_validate(user),
         access_token=access_token,
@@ -100,12 +120,13 @@ def register(
 @router.post("/login", response_model=UserWithTokenResponse)
 def login(
     request: UserLoginRequest,
+    response: Response,
     db: Session = Depends(get_db)
 ):
     """
     ログインエンドポイント
 
-    メールアドレスとパスワードで認証し、トークンを返します。
+    メールアドレスとパスワードで認証し、トークンをHttpOnly Cookieにセットします。
 
     フロントエンド送信データ (camelCase):
     ```json
@@ -129,6 +150,8 @@ def login(
         "tokenType": "bearer"
     }
     ```
+
+    注: トークンはHttpOnly Cookieにもセットされます（SSR対応）
     """
     # ユーザー認証
     user = authenticate_user(db, email=request.email, password=request.password)
@@ -149,6 +172,24 @@ def login(
     # トークン生成
     access_token = create_access_token(data={"sub": str(user.id)})
     refresh_token = create_refresh_token(data={"sub": str(user.id)})
+
+    # HttpOnly Cookieにトークンをセット（SSR対応）
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=settings.environment == "production",
+        samesite="lax",
+        max_age=settings.access_token_expire_minutes * 60,
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=settings.environment == "production",
+        samesite="lax",
+        max_age=settings.refresh_token_expire_days * 24 * 60 * 60,
+    )
 
     return UserWithTokenResponse(
         user=UserResponse.model_validate(user),
@@ -257,16 +298,11 @@ def get_me(current_user: User = Depends(get_current_active_user)):
 
 
 @router.post("/logout", response_model=MessageResponse)
-def logout():
+def logout(response: Response):
     """
     ログアウトエンドポイント
 
-    実際のトークン無効化はフロントエンド側で行います。
-    （JWTトークンはステートレスなため、サーバー側では無効化できません）
-
-    フロントエンド側で行うべき処理:
-    1. ローカルストレージからトークンを削除
-    2. アプリケーションの認証状態をクリア
+    HttpOnly Cookieからトークンを削除します。
 
     レスポンス (camelCase):
     ```json
@@ -275,4 +311,8 @@ def logout():
     }
     ```
     """
+    # Cookieを削除
+    response.delete_cookie(key="access_token", samesite="lax")
+    response.delete_cookie(key="refresh_token", samesite="lax")
+
     return MessageResponse(message="Successfully logged out")

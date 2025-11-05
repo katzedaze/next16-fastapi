@@ -1,5 +1,5 @@
 from typing import Generator, Optional
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Cookie
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
@@ -9,7 +9,7 @@ from app.models import User
 
 
 # HTTPBearer スキーム
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -23,12 +23,18 @@ def get_db() -> Generator[Session, None, None]:
 
 def get_current_user(
     db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    access_token: Optional[str] = Cookie(None)
 ) -> User:
     """
     現在のユーザーを取得
 
-    JWTトークンからユーザーIDを取得し、データベースからユーザー情報を取得します。
+    AuthorizationヘッダーまたはCookieからJWTトークンを取得し、
+    データベースからユーザー情報を取得します。
+
+    優先順位:
+    1. Authorizationヘッダー (Bearer トークン)
+    2. Cookie (access_token)
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -36,7 +42,16 @@ def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    token = credentials.credentials
+    # トークンの取得（Authorizationヘッダー優先、次にCookie）
+    token = None
+    if credentials:
+        token = credentials.credentials
+    elif access_token:
+        token = access_token
+
+    if not token:
+        raise credentials_exception
+
     payload = decode_token(token)
 
     if payload is None:

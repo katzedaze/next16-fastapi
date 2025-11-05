@@ -1,40 +1,30 @@
-'use client';
-
 /**
  * ダッシュボードページ（ログイン後のホームページ）
- * 認証が必要な保護されたページ
+ * Server Componentとして実装し、SSRとSEOに対応
+ *
+ * 認証チェックはMiddlewareで行われるため、
+ * このページにアクセスできる時点で認証済みです。
  */
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/stores/auth-context';
+import { redirect } from 'next/navigation';
+import { getCurrentUser } from '@/lib/api/server-auth';
+import LogoutButton from './LogoutButton';
+import type { Metadata } from 'next';
 
-export default function DashboardPage() {
-  const { user, isAuthenticated, isLoading, logout } = useAuth();
-  const router = useRouter();
+// SEO用のメタデータ
+export const metadata: Metadata = {
+  title: 'ダッシュボード | Next16-FastAPI',
+  description: 'ユーザーダッシュボード - 認証が必要な保護されたページです。',
+};
 
-  // 認証チェック
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.push('/login');
-    }
-  }, [isAuthenticated, isLoading, router]);
+export default async function DashboardPage() {
+  // Server Componentでユーザー情報を取得
+  const user = await getCurrentUser();
 
-  // ローディング中
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">読み込み中...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // 未認証の場合は何も表示しない（リダイレクト中）
-  if (!isAuthenticated || !user) {
-    return null;
+  // ユーザー情報が取得できない場合はログインページにリダイレクト
+  // （通常はMiddlewareでチェックされますが、念のため）
+  if (!user) {
+    redirect('/login');
   }
 
   return (
@@ -43,12 +33,7 @@ export default function DashboardPage() {
       <header className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <h1 className="text-2xl font-bold text-gray-900">ダッシュボード</h1>
-          <button
-            onClick={logout}
-            className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-          >
-            ログアウト
-          </button>
+          <LogoutButton />
         </div>
       </header>
 
@@ -60,7 +45,7 @@ export default function DashboardPage() {
             ようこそ、{user.username}さん！
           </h2>
           <p className="text-gray-600">
-            ログインに成功しました。このページは認証が必要な保護されたページです。
+            ログインに成功しました。このページはSSR対応の認証が必要な保護されたページです。
           </p>
         </div>
 
@@ -119,12 +104,13 @@ export default function DashboardPage() {
             実装された機能
           </h3>
           <ul className="list-disc list-inside text-blue-800 space-y-1">
-            <li>JWT認証によるセキュアな認証</li>
+            <li>JWT認証によるセキュアな認証（HttpOnly Cookie）</li>
             <li>React Hook Form + Zodによるフォームバリデーション</li>
             <li>バックエンドのcamelCase ↔ snake_case自動変換</li>
-            <li>認証状態管理（Context API）</li>
-            <li>保護されたルート</li>
-            <li>自動的なトークン管理</li>
+            <li>SSR対応の認証状態管理</li>
+            <li>Middlewareによる保護されたルート</li>
+            <li>Server Componentによる最適なSEO対応</li>
+            <li>HttpOnly Cookieによるセキュリティ強化（XSS対策）</li>
           </ul>
         </div>
       </main>
