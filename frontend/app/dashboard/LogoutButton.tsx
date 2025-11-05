@@ -7,6 +7,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { logoutAPI } from '@/lib/api/auth';
 
 export default function LogoutButton() {
   const router = useRouter();
@@ -16,11 +17,8 @@ export default function LogoutButton() {
     try {
       setIsLoading(true);
 
-      // バックエンドのログアウトエンドポイントを呼び出し
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/logout`, {
-        method: 'POST',
-        credentials: 'include', // Cookieを含める
-      });
+      // lib/api/auth.ts のlogoutAPI関数を使用
+      await logoutAPI();
 
       // ログインページにリダイレクト
       router.push('/login');
