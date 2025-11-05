@@ -1,0 +1,22 @@
+# FastAPI and dependencies (最新版 - 2025年11月)
+fastapi[standard]>=0.115.0
+uvicorn[standard]>=0.38.0
+python-multipart>=0.0.9
+
+# Database (最新版 - 2025年10月)
+sqlalchemy==2.0.44
+psycopg[binary]>=3.2.12
+alembic>=1.17.1
+
+# Data validation (最新版 - 2025年11月)
+pydantic>=2.12.3
+pydantic-settings>=2.11.0
+
+# Authentication & Security
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+bcrypt>=4.0.0,<5.0.0  # bcrypt 5.0以降でpasslibとの互換性問題があるため4.xを使用
+python-multipart>=0.0.9
+
+# Environment variables
+python-dotenv>=1.0.0
