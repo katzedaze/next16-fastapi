@@ -10,7 +10,7 @@ env_path = project_root / ".env"
 load_dotenv(dotenv_path=env_path)
 
 # ルーターのインポート
-from app.routers import auth
+from app.routers import auth, items
 
 app = FastAPI(
     title="Next16-FastAPI Application",
@@ -30,6 +30,7 @@ app.add_middleware(
 
 # ルーター登録
 app.include_router(auth.router)
+app.include_router(items.router)
 
 
 @app.get("/")
